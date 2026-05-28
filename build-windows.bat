@@ -24,15 +24,11 @@ cls
 echo [INFO] Проверка виртуального окружения...
 if not exist "build-venv\" (
     echo [INFO] Создание виртуального окружения...
-    call python -m venv venv
+    call python -m venv build-venv
 )
 
 echo [INFO] Активация виртуального окружения...
 call .\build-venv\Scripts\activate.bat
-
-set "DIST_DIR=dist\EasyVoice2Speech"
-set "BUILD_DIR=build"
-set "SPEC_FILE=EasyVoice2Speech.spec"
 
 cls
 echo [INFO] Установка зависимостей...
@@ -40,8 +36,6 @@ call pip install -r build-requirements.txt
 
 
 cls
-setlocal
-FOR /F "tokens=*" %%i in ('type build_meta.env') do SET %%i
 if exist build\ (
     echo [INFO] Очистка файлов сборки...
     rmdir /s /q "build"
@@ -64,14 +58,11 @@ call pyinstaller ^
     --collect-all tokenizers ^
     --collect-all safetensors ^
     --collect-all PySide6 ^
-    --collect-all openai-whisper ^
     --collect-all ffmpeg-python ^
     --collect-all torch ^
     --collect-all torchaudio ^
     --collect-all numpy ^
-    --collect-all deepfilternet ^
     --collect-all soundfile ^
-    --collect-all transformers ^
     --collect-all accelerate ^
     --collect-all sentencepiece ^
     --collect-all docx ^
@@ -79,11 +70,9 @@ call pyinstaller ^
     --hidden-import=multiprocessing ^
     --hidden-import=multiprocessing.spawn ^
     --hidden-import=multiprocessing.forkserver ^
-    --add-data "icon.png:." ^
     --add-data "ui:ui" ^
     --add-data "ffmpeg:ffmpeg" ^
-    --add-data "models:models" ^
-    --icon="icon.png" ^
+    --icon="ui/resources/icons/icon.png" ^
     main.py
 
 if errorlevel 1 (
@@ -91,6 +80,5 @@ if errorlevel 1 (
     pause
     pause & exit /b 1
 )
-endlocal
 
-start explorer "%DIST_DIR%"
+start explorer "%CD%\dist\EasyVoice2Speech"
