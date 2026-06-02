@@ -1,0 +1,5 @@
+module components
+Toggle 1.0 toggle.qml
+Pill 1.0 pill.qml
+DropDown 1.0 dropdown.qml
+TextField 1.0 textfield.qml

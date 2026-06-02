@@ -107,6 +107,9 @@ class TranscriptionWorker(QThread):
                 self.denoise_status.emit("done")
                 wav_for_transcription = clean_wav
 
+            self.finished.emit(True)
+            return
+
             # Транскрибация
             self.progress.emit(f"Загрузка Whisper...")
             self.whisper_status.emit("loading")
@@ -151,6 +154,7 @@ class TranscriptionWorker(QThread):
 
         except Exception as e:
             import traceback
+            print(f"{e}\n{traceback.format_exc()}")
             self.error.emit(f"{e}\n{traceback.format_exc()}")
 
 
@@ -240,16 +244,7 @@ class Backend(QObject):
         self.busyChanged.emit(value)
 
 
-def create_app() -> int:
-    os.environ.setdefault("QT_QUICK_BACKEND", "software")
-    os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Material")
-    os.environ.setdefault("QT_QUICK_CONTROLS_MATERIAL_THEME", "Dark")
-    os.environ.setdefault("QT_QUICK_CONTROLS_MATERIAL_ACCENT", "#29B6F6")
-
-    app = QGuiApplication(sys.argv)
-    app.setApplicationName("EasySpeech2Text")
-    app.setWindowIcon(QIcon("ui/resources/icons/icon.png"))
-
+def create_app(app) -> int:
     backend = Backend()
 
     engine = QQmlApplicationEngine()
@@ -265,7 +260,7 @@ def create_app() -> int:
     print(f"[DEBUG] Root objects: {roots}")
 
     if not roots:
-        print("[ERROR] QML не загрузился — проверьте ошибки выше")
+        print("[ERROR] QML не загрузился — проверьте ошибки")
         return 1
 
     print("[DEBUG] Запуск event loop")

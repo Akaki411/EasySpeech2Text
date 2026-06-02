@@ -1,6 +1,7 @@
 import os
 import sys
 import torchaudio
+from pathlib import Path
 
 if not hasattr(torchaudio, 'backend'):
     import types
@@ -13,15 +14,14 @@ from df.enhance import enhance, init_df, load_audio, save_audio
 
 
 def _get_df_model_dir() -> tuple[str, bool]:
-    if hasattr(sys, '_MEIPASS'):
-        exe_dir = os.path.dirname(sys.executable)
-        model_dir = os.path.join(exe_dir, "models", "DeepFilterNet", "DeepFilterNet3")
+    if getattr(sys, 'frozen', False):
+        base_dir = Path(sys.executable).parent
     else:
-        base = os.environ.get("XDG_CACHE_HOME", os.path.join(os.path.expanduser("~"), ".cache"))
-        model_dir = os.path.join(base, "DeepFilterNet", "DeepFilterNet3")
+        base_dir = Path(__file__).parent.parent
 
-    is_downloaded = os.path.isfile(os.path.join(model_dir, "config.ini"))
-    return model_dir, is_downloaded
+    model_dir = base_dir / "models" / "deepfilter"
+    is_downloaded = (model_dir / "config.ini").is_file()
+    return str(model_dir), is_downloaded
 
 
 class Denoiser:
