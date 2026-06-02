@@ -3,7 +3,7 @@ import QtQuick.Controls.Material
 import Qt5Compat.GraphicalEffects
 
 ComboBox {
-    signal select(bool state)
+    signal select(string state)
 
     property var data: []
     property int index: 0
@@ -22,7 +22,11 @@ ComboBox {
     textRole: "name"
 
     onActivated: {
-        select(currentText)
+        let currentItem = model.get(currentIndex)
+        if (currentItem)
+        {
+            select(currentItem.code);
+        }
     }
 
     contentItem: Text {

@@ -5,17 +5,17 @@ from core.converter import _get_ffmpeg_path
 
 
 class Transcriber:
-    def __init__(self):
+    def __init__(self, model_name: str = "medium", locale: str = "auto"):
         self._model = None
-        self._model_name = None
+        self._model_name = model_name
+        self._locale = locale
 
     @property
     def is_loaded(self) -> bool:
         return self._model is not None
 
-    def load(self, model_name: str = "medium"):
-        self._model_name = model_name
-        self._model = whisper.load_model(model_name, )
+    def load(self):
+        self._model = whisper.load_model(self._model_name)
 
     def unload(self):
         import torch
@@ -37,7 +37,7 @@ class Transcriber:
 
         result = self._model.transcribe(
             audio_array,
-            language="ru",
+            language=self._locale,
             task="transcribe",
             fp16=False,
             verbose=False,

@@ -3,17 +3,16 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 
 
 class LLMNormalizer:
-    MODEL_ID = "Qwen/Qwen2.5-1.5B-Instruct"
-
     NORMALIZE_PROMPT = """Ты — редактор текста. Тебе дан сырой текст, полученный из системы распознавания речи (Whisper ASR).
     Задача: нормализуй текст — исправь артефакты распознавания, расставь знаки препинания, исправь очевидные ошибки, убери повторы слов и паразитические звуки. Сохрани смысл и стиль оригинала. Не добавляй ничего от себя.
     Верни только нормализованный текст, без пояснений и комментариев.
     Текст для нормализации:
     {text}"""
 
-    def __init__(self):
+    def __init__(self, model_name: str):
         self._model = None
         self._tokenizer = None
+        self._model_name = model_name
 
     @property
     def is_loaded(self) -> bool:
@@ -21,13 +20,13 @@ class LLMNormalizer:
 
     def load(self):
         self._tokenizer = AutoTokenizer.from_pretrained(
-            self.MODEL_ID,
+            self._model_name,
             trust_remote_code=True,
         )
 
         dtype = torch.float16 if torch.cuda.is_available() else torch.float32
         self._model = AutoModelForCausalLM.from_pretrained(
-            self.MODEL_ID,
+            self._model_name,
             torch_dtype=dtype,
             device_map="auto",
             trust_remote_code=True,

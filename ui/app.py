@@ -4,18 +4,15 @@ import gc
 import winreg
 from pathlib import Path
 from urllib.parse import unquote, urlparse
-
-from PySide6.QtCore import QObject, Signal, Slot, QThread, QUrl
-from PySide6.QtGui import QGuiApplication, QIcon
-from PySide6.QtQml import QQmlApplicationEngine
-
 from docx import Document
+from PySide6.QtCore import QObject, Signal, Slot, QThread, QUrl
+from PySide6.QtQml import QQmlApplicationEngine
 
 from core.converter import prepare_audio
 from core.denoiser import Denoiser
 from core.transcriber import Transcriber
 from core.llm import LLMNormalizer
-from utils.file_utils import is_supported, friendly_size
+from utils.file_utils import friendly_size
 
 
 def _resolve_path(file_url: str) -> str:
@@ -62,17 +59,21 @@ class TranscriptionWorker(QThread):
     get_raw_text =        Signal(str)
     get_normalized_text = Signal(str)
 
-    def __init__(self,file_path: str,model_name: str,denoise: bool,use_llm: bool,):
+    def __init__(self, file_path: str, whisper_model_name: str, llm_model_name: str, locale: str, denoise: bool, use_whisper: bool, use_llm: bool):
         super().__init__()
+        print(llm_model_name)
         self._file_path = file_path
-        self._model_name = model_name
+        self._whisper_model_name = whisper_model_name
+        self._llm_model_name = llm_model_name
+        self._locale = locale
         self._denoise = denoise
+        self._use_whisper = use_whisper
         self._use_llm = use_llm
 
     def run(self):
         try:
-            stem = Path(self._file_path).stem
-            out_dir = _get_output_dir(self._file_path)
+            stem      = Path(self._file_path).stem
+            out_dir   = _get_output_dir(self._file_path)
             raw_wav   = out_dir / f"{stem}_raw.wav"
             clean_wav = out_dir / f"{stem}_raw_denoise.wav"
 
@@ -89,7 +90,6 @@ class TranscriptionWorker(QThread):
 
             # Шумоподавление
             wav_for_transcription = raw_wav
-
             if self._denoise:
                 self.progress.emit("Загрузка DeepFilter...")
                 self.denoise_status.emit("loading")
@@ -107,34 +107,36 @@ class TranscriptionWorker(QThread):
                 self.denoise_status.emit("done")
                 wav_for_transcription = clean_wav
 
-            self.finished.emit(True)
-            return
 
             # Транскрибация
-            self.progress.emit(f"Загрузка Whisper...")
-            self.whisper_status.emit("loading")
-            transcriber = Transcriber()
-            transcriber.load(self._model_name)
+            if self._use_whisper:
+                self.progress.emit(f"Загрузка Whisper...")
+                self.whisper_status.emit("loading")
+                transcriber = Transcriber(self._whisper_model_name, self._locale)
+                transcriber.load()
 
-            self.progress.emit("Транскрибация...")
-            self.whisper_status.emit("process")
-            transcript = transcriber.transcribe(str(wav_for_transcription))
+                self.progress.emit("Транскрибация...")
+                self.whisper_status.emit("process")
+                transcript = transcriber.transcribe(str(wav_for_transcription))
 
-            self.get_raw_text.emit(transcript)
+                self.get_raw_text.emit(transcript)
 
-            transcriber.unload()
-            del transcriber
-            gc.collect()
-            self.progress.emit("Whisper выгружен")
-            self.whisper_status.emit("done")
+                transcriber.unload()
+                del transcriber
+                gc.collect()
+                self.progress.emit("Whisper выгружен")
+                self.whisper_status.emit("done")
+                final_text = transcript
+            else:
+                self.finished.emit(True)
+                self.progress.emit("Готово!")
+                return
 
             # Нормализация
-            final_text = transcript
-
             if self._use_llm:
-                self.progress.emit("Загрузка DeepSeek...")
+                self.progress.emit("Загрузка LLM...")
                 self.deepseek_status.emit("loading")
-                normalizer = LLMNormalizer()
+                normalizer = LLMNormalizer(self._llm_model_name)
                 normalizer.load()
 
                 self.progress.emit("Нормализация текста…")
@@ -176,17 +178,16 @@ class Backend(QObject):
         self._worker = None
         self._loader = None
 
-    @Slot(str, bool, bool)
-    def transcribeFile(self,model_name: str = "medium", denoise: bool = True, use_llm: bool = True):
+    @Slot(str, str, str, bool, bool, bool)
+    def transcribeFile(self, whisper_model_name: str = "medium", llm_model_name: str = "", locale: str = "auto", denoise: bool = True, use_whisper: bool = True, use_llm: bool = True):
         if self._busy:
             return
-
         self.getRawText.emit("")
         self.getNormalizedText.emit("")
 
         self._set_busy(True)
 
-        self._worker = TranscriptionWorker(self._file_path, model_name, denoise, use_llm)
+        self._worker = TranscriptionWorker(self._file_path, whisper_model_name, llm_model_name, locale, denoise, use_whisper, use_llm)
         self._worker.progress.connect(self.statusChanged)
 
         self._worker.finished.connect(self._on_done)

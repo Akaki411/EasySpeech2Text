@@ -10,12 +10,13 @@ Rectangle {
     property string text: ""
     property bool waiting: false
 
-    readonly property color bgCard:   "#242424"
-    readonly property color accent:   "#29B6F6"
-    readonly property color textHigh: "#EEEEEE"
-    readonly property color textMid:  "#9E9E9E"
-    readonly property color textLow:  "#616161"
-    readonly property color divider:  "#2E2E2E"
+    property color bgCard:   "#242424"
+    property color bgInput:  "#2C2C2C"
+    property color accent:   "#29B6F6"
+    property color textHigh: "#EEEEEE"
+    property color textMid:  "#9E9E9E"
+    property color textLow:  "#616161"
+    property color divider:  "#2E2E2E"
 
     id: root
     Layout.fillWidth: true

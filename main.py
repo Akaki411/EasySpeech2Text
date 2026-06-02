@@ -68,11 +68,11 @@ def download_ffmpeg(preloader=None):
         if ffmpeg_found:
             break
         item_path = (FFMPEG_DIR / item)
-        if (item_path.is_dir() and "ffmpeg" in item.lower()):
+        if item_path.is_dir() and "ffmpeg" in item.lower():
             bin_path = (item_path/ "bin")
             if bin_path.exists():
                 for file_name in os.listdir(bin_path):
-                    if (file_name== "ffmpeg.exe"):
+                    if file_name== "ffmpeg.exe":
                         shutil.copy2(bin_path / file_name,ffmpeg_exe)
                         ffmpeg_found = True
                         break

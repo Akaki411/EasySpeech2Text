@@ -19,6 +19,7 @@ ApplicationWindow {
     Material.background: "#1A1A1A"
     Material.foreground: "#EEEEEE"
 
+
     readonly property color bgPage:      "#1A1A1A"
     readonly property color bgCard:      "#242424"
     readonly property color bgInput:     "#2C2C2C"
@@ -38,7 +39,9 @@ ApplicationWindow {
     property string transcriptText: "321"
     property string llmText: "123"
     property string fileInfo: ""
+    property string lang: "ru"
     property string whisperModel: "medium"
+    property string llmModel: "Qwen/Qwen2.5-1.5B-Instruct"
     property string deepFilterState: "waiting"
     property string whisperState: "waiting"
     property string deepSeekState: "waiting"
@@ -49,6 +52,17 @@ ApplicationWindow {
 
     property bool isBusy: false
     property bool isReady: false
+
+    property var models: [
+        { code: "Qwen/Qwen2.5-1.5B-Instruct", name: "Qwen2.5 1.5B" },
+        { code: "Qwen/Qwen2.5-3B-Instruct", name: "Qwen2.5 3B" },
+        { code: "google/gemma-2-2b-it", name: "Gemma2 2B" },
+        { code: "microsoft/Phi-3-mini-4k-instruct", name: "Phi-3 Mini 4K" },
+        { code: "microsoft/Phi-3.5-mini-instruct", name: "Phi-3.5 Mini" },
+        { code: "TinyLlama/TinyLlama-1.1B-Chat-v1.0", name: "TinyLlama 1.1B" },
+        { code: "stabilityai/stablelm-2-zephyr-1_6b", name: "StableLM2 1.6B" },
+        { code: "IlyaGusev/saiga_llama3_8b", name: "SaigaLlama3 8B" }
+    ]
 
     Connections {
         target: backend
@@ -92,12 +106,13 @@ ApplicationWindow {
                     height: 150
 
                     Rectangle {
-                        Layout.maximumWidth: parent.width / 3
+                        Layout.preferredWidth: root.width / 3
                         Layout.minimumWidth: 350
+                        Layout.maximumWidth: root.width / 3
                         height: 150
                         radius: 8
                         color: dropArea.containsDrag ? Qt.rgba(0.16, 0.71, 0.96, 0.08) : root.bgCard
-                        Behavior on color        { ColorAnimation { duration: 200 } }
+                        Behavior on color {ColorAnimation {duration: 200}}
 
                         Rectangle {
                             anchors.fill: parent
@@ -208,15 +223,16 @@ ApplicationWindow {
                             anchors.fill: parent
                             spacing: 0
 
-                            RowLayout {
-                                Layout.fillWidth: true
-                                height: 150
-                                spacing: 0
+                            Item {
+                                width: parent.width
+                                height: 115
 
                                 GridLayout {
-                                    height: 120
-                                    width: 150
-                                    Layout.alignment: Qt.AlignLeft | Qt.AlignVCenter
+                                    id: settingsGrid
+
+                                    Layout.preferredWidth: 150
+                                    Layout.preferredHeight: 120
+                                    anchors.left: parent.left
                                     columns: 2
                                     rowSpacing: 15
                                     columnSpacing: 20
@@ -241,7 +257,7 @@ ApplicationWindow {
 
                                     Text {
                                         text: "Транскрибация"
-                                        color: root.useDeepFilter ? root.accentLight : root.textLow
+                                        color: root.useWhisper ? root.accentLight : root.textLow
                                         font.pixelSize: 12
                                         font.letterSpacing: 0.4
                                         font.weight: Font.Medium
@@ -276,15 +292,10 @@ ApplicationWindow {
                                     }
                                 }
 
-                                Item {
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
-                                }
-
                                 GridLayout {
-                                    height: 120
-                                    width: 200
-                                    Layout.alignment: Qt.AlignVCenter
+                                    Layout.preferredWidth: 250
+                                    Layout.preferredHeight: 120
+                                    anchors.horizontalCenter: parent.horizontalCenter
                                     columns: 2
                                     rowSpacing: 15
                                     columnSpacing: 10
@@ -301,17 +312,16 @@ ApplicationWindow {
 
                                     Components.DropDown {
                                         data: ListModel {
-                                            ListElement { code: "auto"; name: "Авто"}
+                                            ListElement { code: "ru"; name: "🇷🇺 Русский" }
                                             ListElement { code: "ar"; name: "🇸🇦 Арабский" }
                                             ListElement { code: "en"; name: "🇬🇧 Английский" }
                                             ListElement { code: "fr"; name: "🇫🇷 Французский" }
                                             ListElement { code: "es"; name: "🇪🇸 Испанский" }
-                                            ListElement { code: "ru"; name: "🇷🇺 Русский" }
                                             ListElement { code: "zh"; name: "🇨🇳 Китайский" }
                                         }
                                         index: 0
                                         onSelect: (data) => {
-                                            root.whisperModel = data
+                                            root.lang = data
                                         }
                                     }
 
@@ -352,28 +362,25 @@ ApplicationWindow {
 
                                     Components.DropDown {
                                         data: ListModel {
-                                            ListElement { code: "tiny"; name: "Qwen 2.5-1.5B"}
-                                            ListElement { code: "base"; name: "Base" }
-                                            ListElement { code: "small"; name: "Small" }
-                                            ListElement { code: "medium"; name: "Medium" }
-                                            ListElement { code: "large"; name: "Large" }
+                                            id: llmModel
                                         }
                                         index: 0
                                         onSelect: (data) => {
-                                            root.whisperModel = data
+                                            root.llmModel = data
+                                        }
+                                        Component.onCompleted: {
+                                            for (let i = 0; i < root.models.length; i++)
+                                            {
+                                                llmModel.append(root.models[i]);
+                                            }
                                         }
                                     }
                                 }
 
-                                Item {
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
-                                }
-
                                 GridLayout {
-                                    height: 120
-                                    width: 150
-                                    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                    Layout.preferredWidth: 150
+                                    Layout.preferredHeight: 120
+                                    anchors.right: parent.right
                                     columns: 2
                                     rowSpacing: 10
                                     columnSpacing: 20
@@ -403,7 +410,7 @@ ApplicationWindow {
                                     }
 
                                     Text {
-                                        text: "LLM"
+                                        text: {return root.models.filter(key => key.code === root.llmModel)[0].name}
                                         color: root.textMid
                                         font.pixelSize: 12
                                         font.letterSpacing: 0.4
@@ -418,9 +425,9 @@ ApplicationWindow {
 
                             Button {
                                 id: btn
-                                width: 250
+                                width: settingsGrid.width
                                 height: 40
-                                anchors.horizontalCenter: parent.horizontalCenter
+                                anchors.left: settingsGrid.left
 
                                 Text {
                                     anchors.centerIn: parent
@@ -442,13 +449,11 @@ ApplicationWindow {
                                     enabled: root.isReady
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        backend.transcribeFile(root.whisperModel, root.useDeepFilter, root.deepSeekState !== "skip")
+                                        backend.transcribeFile(root.whisperModel, root.llmModel, root.lang, root.useDeepFilter, root.useWhisper, root.useNormalize)
                                     }
                                 }
                             }
                         }
-
-
                     }
                 }
 
@@ -489,7 +494,7 @@ ApplicationWindow {
                         Layout.fillHeight: true
 
                         Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
+                            Layout.alignment: Qt.AlignHCenter
                             text: root.statusText
                             color: root.statusText.startsWith("Ошибка") ? root.error :
                                 root.statusText.startsWith("Готов") ? root.success :
