@@ -13,6 +13,8 @@ from core.denoiser import Denoiser
 from core.transcriber import Transcriber
 from core.llm import LLMNormalizer
 from utils.file_utils import friendly_size
+import api
+from database import KeysDatabase
 
 
 def _resolve_path(file_url: str) -> str:
@@ -59,9 +61,8 @@ class TranscriptionWorker(QThread):
     get_raw_text =        Signal(str)
     get_normalized_text = Signal(str)
 
-    def __init__(self, file_path: str, whisper_model_name: str, llm_model_name: str, locale: str, denoise: bool, use_whisper: bool, use_llm: bool):
+    def __init__(self, file_path: str, whisper_model_name: str, llm_model_name: str, locale: str, denoise: bool, use_whisper: bool, use_llm: bool, cloud=None):
         super().__init__()
-        print(llm_model_name)
         self._file_path = file_path
         self._whisper_model_name = whisper_model_name
         self._llm_model_name = llm_model_name
@@ -69,6 +70,7 @@ class TranscriptionWorker(QThread):
         self._denoise = denoise
         self._use_whisper = use_whisper
         self._use_llm = use_llm
+        self._cloud = cloud
 
     def run(self):
         try:
@@ -134,22 +136,31 @@ class TranscriptionWorker(QThread):
 
             # Нормализация
             if self._use_llm:
-                self.progress.emit("Загрузка LLM...")
-                self.deepseek_status.emit("loading")
-                normalizer = LLMNormalizer(self._llm_model_name)
-                normalizer.load()
+                if self._cloud:
+                    self.progress.emit("Запрос к облачной LLM…")
+                    self.deepseek_status.emit("process")
+                    prompt = LLMNormalizer.NORMALIZE_PROMPT.format(text=transcript)
+                    final_text = api.chat(self._cloud["provider"], self._cloud["key"], self._cloud["model"], prompt)
 
-                self.progress.emit("Нормализация текста…")
-                self.deepseek_status.emit("process")
-                final_text = normalizer.normalize(transcript)
+                    self.get_normalized_text.emit(final_text)
+                    self.deepseek_status.emit("done")
+                else:
+                    self.progress.emit("Загрузка LLM...")
+                    self.deepseek_status.emit("loading")
+                    normalizer = LLMNormalizer(self._llm_model_name)
+                    normalizer.load()
 
-                self.get_normalized_text.emit(final_text)
+                    self.progress.emit("Нормализация текста…")
+                    self.deepseek_status.emit("process")
+                    final_text = normalizer.normalize(transcript)
 
-                normalizer.unload()
-                del normalizer
-                gc.collect()
-                self.progress.emit("DeepSeek выгружен")
-                self.deepseek_status.emit("done")
+                    self.get_normalized_text.emit(final_text)
+
+                    normalizer.unload()
+                    del normalizer
+                    gc.collect()
+                    self.progress.emit("DeepSeek выгружен")
+                    self.deepseek_status.emit("done")
 
             self.finished.emit(True)
             self.progress.emit("Готово!")
@@ -158,6 +169,22 @@ class TranscriptionWorker(QThread):
             import traceback
             print(f"{e}\n{traceback.format_exc()}")
             self.error.emit(f"{e}\n{traceback.format_exc()}")
+
+
+class KeyCheckWorker(QThread):
+    done = Signal(str, str, bool, list, str)
+
+    def __init__(self, provider: str, key: str):
+        super().__init__()
+        self._provider = provider
+        self._key = key
+
+    def run(self):
+        try:
+            models = api.list_models(self._provider, self._key)
+            self.done.emit(self._provider, self._key, True, models, "")
+        except Exception as e:
+            self.done.emit(self._provider, self._key, False, [], str(e))
 
 
 class Backend(QObject):
@@ -169,6 +196,8 @@ class Backend(QObject):
     deepSeekStatusChanged = Signal(str)
     busyChanged =           Signal(bool)
     readyChanged =          Signal(bool)
+    keyChecked =            Signal(str, bool, str)
+    cloudModelsChanged =    Signal(list)
 
     def __init__(self):
         super().__init__()
@@ -177,6 +206,11 @@ class Backend(QObject):
         self._model_ready = False
         self._worker = None
         self._loader = None
+        self._db = KeysDatabase()
+        self._cloud = {}
+        self._checkers = []
+        for record in self._db.get_all_keys():
+            self._cloud[record["provider"]] = {"key": record["api_key"], "models": record["models"]}
 
     @Slot(str, str, str, bool, bool, bool)
     def transcribeFile(self, whisper_model_name: str = "medium", llm_model_name: str = "", locale: str = "auto", denoise: bool = True, use_whisper: bool = True, use_llm: bool = True):
@@ -187,7 +221,12 @@ class Backend(QObject):
 
         self._set_busy(True)
 
-        self._worker = TranscriptionWorker(self._file_path, whisper_model_name, llm_model_name, locale, denoise, use_whisper, use_llm)
+        cloud = None
+        if api.is_cloud(llm_model_name):
+            provider, model = api.parse_cloud(llm_model_name)
+            cloud = {"provider": provider, "model": model, "key": self._db.get_key(provider)}
+
+        self._worker = TranscriptionWorker(self._file_path, whisper_model_name, llm_model_name, locale, denoise, use_whisper, use_llm, cloud)
         self._worker.progress.connect(self.statusChanged)
 
         self._worker.finished.connect(self._on_done)
@@ -216,6 +255,49 @@ class Backend(QObject):
         docx = out_dir / f"{stem}{suffix}.docx"
         _save_docx(content, docx)
         os.startfile(out_dir)
+
+    @Slot(result="QVariantList")
+    def loadKeys(self) -> list:
+        saved = {record["provider"]: record["api_key"] for record in self._db.get_all_keys()}
+        return [
+            {"name": provider, "key": saved.get(provider, ""), "isValid": provider in saved}
+            for provider in api.PROVIDERS
+        ]
+
+    @Slot(result="QVariantList")
+    def loadCloudModels(self) -> list:
+        return self._build_cloud_models()
+
+    @Slot(str, str)
+    def checkKey(self, provider: str, key: str):
+        key = key.strip()
+        if not key:
+            self.keyChecked.emit(provider, False, "Пустой ключ")
+            return
+
+        worker = KeyCheckWorker(provider, key)
+        worker.done.connect(self._on_key_checked)
+        worker.finished.connect(lambda w=worker: self._checkers.remove(w))
+        self._checkers.append(worker)
+        worker.start()
+
+    def _on_key_checked(self, provider: str, key: str, ok: bool, models: list, message: str):
+        if ok:
+            self._db.save_key(provider, key, models)
+            self._cloud[provider] = {"key": key, "models": models}
+            self.cloudModelsChanged.emit(self._build_cloud_models())
+        else:
+            self._db.delete_key(provider)
+            self._cloud.pop(provider, None)
+            self.cloudModelsChanged.emit(self._build_cloud_models())
+        self.keyChecked.emit(provider, ok, message)
+
+    def _build_cloud_models(self) -> list:
+        models = []
+        for provider, info in self._cloud.items():
+            for model in info["models"]:
+                models.append({"code": api.cloud_code(provider, model), "name": f"{model} · {provider}"})
+        return models
 
     def _on_get_raw_text(self, text: str):
         self.getRawText.emit(text)

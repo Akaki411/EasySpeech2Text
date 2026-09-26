@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls.Material
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import QtQuick.Effects
+import QtQuick.Controls
 import "сomponents" as Components
 
 
@@ -10,7 +12,7 @@ ApplicationWindow {
     visible: true
     width: 1000
     height: 600
-    minimumWidth: 800
+    minimumWidth: 900
     minimumHeight: 500
     title: "EasySpeech2Text"
 
@@ -36,12 +38,13 @@ ApplicationWindow {
     color: bgPage
 
     property string statusText: "Выберите файл"
-    property string transcriptText: "321"
-    property string llmText: "123"
+    property string transcriptText: ""
+    property string llmText: ""
     property string fileInfo: ""
     property string lang: "ru"
     property string whisperModel: "medium"
     property string llmModel: "Qwen/Qwen2.5-1.5B-Instruct"
+
     property string deepFilterState: "waiting"
     property string whisperState: "waiting"
     property string deepSeekState: "waiting"
@@ -52,17 +55,20 @@ ApplicationWindow {
 
     property bool isBusy: false
     property bool isReady: false
+    property bool settingsVisible: true
 
-    property var models: [
-        { code: "Qwen/Qwen2.5-1.5B-Instruct", name: "Qwen2.5 1.5B" },
-        { code: "Qwen/Qwen2.5-3B-Instruct", name: "Qwen2.5 3B" },
-        { code: "google/gemma-2-2b-it", name: "Gemma2 2B" },
-        { code: "microsoft/Phi-3-mini-4k-instruct", name: "Phi-3 Mini 4K" },
-        { code: "microsoft/Phi-3.5-mini-instruct", name: "Phi-3.5 Mini" },
-        { code: "TinyLlama/TinyLlama-1.1B-Chat-v1.0", name: "TinyLlama 1.1B" },
-        { code: "stabilityai/stablelm-2-zephyr-1_6b", name: "StableLM2 1.6B" },
-        { code: "IlyaGusev/saiga_llama3_8b", name: "SaigaLlama3 8B" }
+    property var localModels: [
+        {code: "Qwen/Qwen2.5-1.5B-Instruct", name: "Qwen2.5 1.5B"},
+        {code: "Qwen/Qwen2.5-3B-Instruct", name: "Qwen2.5 3B"},
+        {code: "google/gemma-2-2b-it", name: "Gemma2 2B"},
+        {code: "microsoft/Phi-3-mini-4k-instruct", name: "Phi-3 Mini 4K"},
+        {code: "microsoft/Phi-3.5-mini-instruct", name: "Phi-3.5 Mini"},
+        {code: "TinyLlama/TinyLlama-1.1B-Chat-v1.0", name: "TinyLlama 1.1B"},
+        {code: "stabilityai/stablelm-2-zephyr-1_6b", name: "StableLM2 1.6B"},
+        {code: "IlyaGusev/saiga_llama3_8b", name: "SaigaLlama3 8B"}
     ]
+    property var cloudModels: []
+    property var models: {return cloudModels.concat(localModels)}
 
     Connections {
         target: backend
@@ -74,6 +80,36 @@ ApplicationWindow {
         function onFilterStatusChanged(state)   {root.deepFilterState = state}
         function onWhisperStatusChanged(state)  {root.whisperState = state}
         function onDeepSeekStatusChanged(state) {root.deepSeekState = state}
+        function onCloudModelsChanged(list)     {root.cloudModels = list; root.rebuildLlmModels()}
+    }
+
+    function rebuildLlmModels() {
+        llmModel.clear()
+        for (let i = 0; i < root.models.length; i++)
+            llmModel.append(root.models[i])
+    }
+
+    Component.onCompleted: {
+        root.cloudModels = backend.loadCloudModels()
+        root.rebuildLlmModels()
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        visible: settingsVisible
+        color: "#60000000"
+        z: 10
+
+        Components.Settings {
+            onClose: {
+                root.settingsVisible = false
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: {}
+        }
     }
 
     FileDialog {
@@ -86,12 +122,12 @@ ApplicationWindow {
         }
     }
 
-    TextEdit { id: clipHelper; visible: false }
-
     ColumnLayout {
+        id: contentArea
         anchors.fill: parent
         anchors.margins: 0
         spacing: 0
+        z: 0
 
         ColumnLayout {
             Layout.fillWidth: true

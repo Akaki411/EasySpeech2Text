@@ -97,3 +97,4 @@ models/
 build-venv/
 ffmpeg/
 Output/
+data/

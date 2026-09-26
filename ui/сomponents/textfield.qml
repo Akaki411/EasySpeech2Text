@@ -18,6 +18,10 @@ Rectangle {
     property color textLow:  "#616161"
     property color divider:  "#2E2E2E"
 
+    readonly property string copyInk:     "../resources/vector/copy.svg"
+    readonly property string downloadInk: "../resources/vector/file-download.svg"
+    readonly property string checkInk:    "../resources/vector/rosette-discount-check.svg"
+
     id: root
     Layout.fillWidth: true
     Layout.fillHeight: true
@@ -89,7 +93,7 @@ Rectangle {
 
                     Image {
                         id: copyBtnImage
-                        source: "../resources/vector/copy.svg"
+                        source: root.copyInk
                         width: 16
                         height: 16
                         anchors.centerIn: parent
@@ -99,7 +103,7 @@ Rectangle {
                         id: copyBtnImageTimer
                         interval: 3000
                         onTriggered: {
-                            copyBtnImage.source = "../resources/vector/copy.svg"
+                            copyBtnImage.source = root.copyInk
                         }
                     }
 
@@ -112,7 +116,7 @@ Rectangle {
                             clipHelper.text = root.text
                             clipHelper.selectAll()
                             clipHelper.copy()
-                            copyBtnImage.source = "../resources/vector/rosette-discount-check.svg"
+                            copyBtnImage.source = root.checkInk
                             copyBtnImageTimer.restart()
                         }
                     }
@@ -128,7 +132,7 @@ Rectangle {
 
                     Image {
                         id: downloadBtnImage
-                        source: "../resources/vector/file-download.svg"
+                        source: root.downloadInk
                         width: 16
                         height: 16
                         anchors.centerIn: parent
@@ -138,7 +142,7 @@ Rectangle {
                         id: downloadBtnImageTimer
                         interval: 3000
                         onTriggered: {
-                            downloadBtnImage.source = "../resources/vector/file-download.svg"
+                            downloadBtnImage.source = root.downloadInk
                         }
                     }
 
@@ -148,7 +152,7 @@ Rectangle {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            downloadBtnImage.source = "../resources/vector/rosette-discount-check.svg"
+                            downloadBtnImage.source = root.checkInk
                             download()
                             downloadBtnImageTimer.restart()
                         }
